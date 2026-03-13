@@ -1,0 +1,37 @@
+# ============================================================
+# HardScope Backend — Pinned Dependencies
+# Install with: pip install -r requirements.txt
+# ============================================================
+
+# --- Web framework ---
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# --- ORM + database ---
+sqlalchemy==2.0.36
+
+# --- Validation + config ---
+pydantic==2.10.3
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+
+# --- Data loading ---
+pandas==2.2.3
+# numpy is an implicit pandas dependency — not imported directly in this
+# codebase (we use pd.isna() throughout, not np.isnan()). If any file
+# ever imports numpy directly, pin it here explicitly.
+
+# --- HTTP client (YouTube API) ---
+requests==2.32.3
+
+# ============================================================
+# Dev / optional (not required to run the app)
+# ============================================================
+
+# Fast linter — used by `make lint`. Install separately if desired:
+# pip install ruff
+# ruff==0.8.4
+
+# Migrations — not used in the 48hr build (create_all() handles schema).
+# Add before any production migration story:
+# alembic==1.14.0
