@@ -25,6 +25,11 @@ SessionLocal: sessionmaker[Session] = sessionmaker(
     bind=engine,
     autocommit=False,
     autoflush=False,
+    # expire_on_commit=False: the data pipeline passes in-memory ORM objects
+    # between stages after commits. The default True would expire all attributes
+    # on commit, triggering N+1 lazy reloads across the full campaign/creator
+    # lists inside health_score.py and alerts.py.
+    expire_on_commit=False,
 )
 
 
