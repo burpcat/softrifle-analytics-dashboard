@@ -34,94 +34,98 @@ def get_summary(db: Session = Depends(get_db)) -> AnalyticsSummaryResponse:
     a consistent snapshot — prevents internally inconsistent responses if a
     re-ingestion write occurs between queries.
     """
-    with db.begin():
-        # 1. Counts
-        total_creators  = db.query(func.count(Creator.id)).scalar() or 0
-        total_campaigns = db.query(func.count(Campaign.id)).scalar() or 0
-        total_influencer = (
-            db.query(func.count(Campaign.id))
-            .filter(func.lower(Campaign.campaign_type) == "influencer")
-            .scalar() or 0
-        )
+    # All queries below share the session's implicit transaction (autocommit=False
+    # on SessionLocal). No explicit db.begin() needed — calling it would raise
+    # InvalidRequestError since a transaction is already open. The implicit
+    # transaction provides the consistent read snapshot across all 9 queries.
 
-        # 2. Avg health score
-        avg_health = db.query(func.avg(Creator.health_score)).scalar()
+    # 1. Counts
+    total_creators  = db.query(func.count(Creator.id)).scalar() or 0
+    total_campaigns = db.query(func.count(Campaign.id)).scalar() or 0
+    total_influencer = (
+        db.query(func.count(Campaign.id))
+        .filter(func.lower(Campaign.campaign_type) == "influencer")
+        .scalar() or 0
+    )
 
-        # 3. Avg ROI by campaign type
-        roi_by_type_rows = (
-            db.query(Campaign.campaign_type, func.avg(Campaign.roi))
-            .filter(Campaign.campaign_type.is_not(None))
-            .group_by(Campaign.campaign_type)
-            .all()
-        )
-        avg_roi_by_campaign_type = {row[0]: row[1] for row in roi_by_type_rows}
+    # 2. Avg health score
+    avg_health = db.query(func.avg(Creator.health_score)).scalar()
 
-        # 4. Avg ROI by channel
-        roi_by_channel_rows = (
-            db.query(Campaign.channel_used, func.avg(Campaign.roi))
-            .filter(Campaign.channel_used.is_not(None))
-            .group_by(Campaign.channel_used)
-            .all()
-        )
-        avg_roi_by_channel = {row[0]: row[1] for row in roi_by_channel_rows}
+    # 3. Avg ROI by campaign type
+    roi_by_type_rows = (
+        db.query(Campaign.campaign_type, func.avg(Campaign.roi))
+        .filter(Campaign.campaign_type.is_not(None))
+        .group_by(Campaign.campaign_type)
+        .all()
+    )
+    avg_roi_by_campaign_type = {row[0]: row[1] for row in roi_by_type_rows}
 
-        # 5. Avg ROI by segment
-        roi_by_segment_rows = (
-            db.query(Campaign.customer_segment, func.avg(Campaign.roi))
-            .filter(Campaign.customer_segment.is_not(None))
-            .group_by(Campaign.customer_segment)
-            .all()
-        )
-        avg_roi_by_segment = {row[0]: row[1] for row in roi_by_segment_rows}
+    # 4. Avg ROI by channel
+    roi_by_channel_rows = (
+        db.query(Campaign.channel_used, func.avg(Campaign.roi))
+        .filter(Campaign.channel_used.is_not(None))
+        .group_by(Campaign.channel_used)
+        .all()
+    )
+    avg_roi_by_channel = {row[0]: row[1] for row in roi_by_channel_rows}
 
-        # 6. Top 5 creators by health_score
-        # LEFT JOIN so creators with zero linked campaigns still appear.
-        # avg_roi is None for unlinked creators — TopCreatorItem.avg_roi
-        # is Optional[float] to accommodate this.
-        top_rows = (
-            db.query(
-                Creator.id,
-                Creator.username,
-                Creator.platform,
-                Creator.category,
-                Creator.health_score,
-                func.avg(Campaign.roi).label("avg_roi"),
-            )
-            .outerjoin(Campaign, Campaign.creator_id == Creator.id)
-            .filter(Creator.health_score.is_not(None))
-            .group_by(Creator.id)
-            .order_by(Creator.health_score.desc())
-            .limit(5)
-            .all()
-        )
-        top_creators = [
-            TopCreatorItem(
-                id           = row.id,
-                username     = row.username,
-                platform     = row.platform,
-                category     = row.category,
-                health_score = row.health_score,
-                avg_roi      = row.avg_roi,
-            )
-            for row in top_rows
-        ]
+    # 5. Avg ROI by segment
+    roi_by_segment_rows = (
+        db.query(Campaign.customer_segment, func.avg(Campaign.roi))
+        .filter(Campaign.customer_segment.is_not(None))
+        .group_by(Campaign.customer_segment)
+        .all()
+    )
+    avg_roi_by_segment = {row[0]: row[1] for row in roi_by_segment_rows}
 
-        # 7. Platform breakdown (creator count by platform)
-        platform_rows = (
-            db.query(Creator.platform, func.count(Creator.id))
-            .group_by(Creator.platform)
-            .all()
+    # 6. Top 5 creators by health_score
+    # LEFT JOIN so creators with zero linked campaigns still appear.
+    # avg_roi is None for unlinked creators — TopCreatorItem.avg_roi
+    # is Optional[float] to accommodate this.
+    top_rows = (
+        db.query(
+            Creator.id,
+            Creator.username,
+            Creator.platform,
+            Creator.category,
+            Creator.health_score,
+            func.avg(Campaign.roi).label("avg_roi"),
         )
-        platform_breakdown = {str(row[0].value): row[1] for row in platform_rows}
+        .outerjoin(Campaign, Campaign.creator_id == Creator.id)
+        .filter(Creator.health_score.is_not(None))
+        .group_by(Creator.id)
+        .order_by(Creator.health_score.desc())
+        .limit(5)
+        .all()
+    )
+    top_creators = [
+        TopCreatorItem(
+            id           = row.id,
+            username     = row.username,
+            platform     = row.platform,
+            category     = row.category,
+            health_score = row.health_score,
+            avg_roi      = row.avg_roi,
+        )
+        for row in top_rows
+    ]
 
-        # 8. Segment breakdown (campaign count by segment)
-        segment_rows = (
-            db.query(Campaign.customer_segment, func.count(Campaign.id))
-            .filter(Campaign.customer_segment.is_not(None))
-            .group_by(Campaign.customer_segment)
-            .all()
-        )
-        segment_breakdown = {row[0]: row[1] for row in segment_rows}
+    # 7. Platform breakdown (creator count by platform)
+    platform_rows = (
+        db.query(Creator.platform, func.count(Creator.id))
+        .group_by(Creator.platform)
+        .all()
+    )
+    platform_breakdown = {str(row[0].value): row[1] for row in platform_rows}
+
+    # 8. Segment breakdown (campaign count by segment)
+    segment_rows = (
+        db.query(Campaign.customer_segment, func.count(Campaign.id))
+        .filter(Campaign.customer_segment.is_not(None))
+        .group_by(Campaign.customer_segment)
+        .all()
+    )
+    segment_breakdown = {row[0]: row[1] for row in segment_rows}
 
     return AnalyticsSummaryResponse(
         total_creators              = total_creators,
@@ -135,6 +139,7 @@ def get_summary(db: Session = Depends(get_db)) -> AnalyticsSummaryResponse:
         platform_breakdown          = platform_breakdown,
         segment_breakdown           = segment_breakdown,
     )
+
 
 
 # ---------------------------------------------------------------------------

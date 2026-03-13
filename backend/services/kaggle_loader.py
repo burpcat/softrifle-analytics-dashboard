@@ -29,14 +29,20 @@ NUMERIC_COLUMNS = [
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+# def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+#     """Strip whitespace from column names and title-case them to match
+#     EXPECTED_COLUMNS exactly. Handles CSVs exported with leading/trailing
+#     spaces or inconsistent casing."""
+#     df.columns = [c.strip().title().replace(" ", "_") for c in df.columns]
+#     # Title-case produces e.g. "Roi" — fix the known acronym cases
+#     rename_map = {"Roi": "ROI", "Id": "ID"}
+#     df.columns = [rename_map.get(c, c) for c in df.columns]
+#     return df
+
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Strip whitespace from column names and title-case them to match
-    EXPECTED_COLUMNS exactly. Handles CSVs exported with leading/trailing
-    spaces or inconsistent casing."""
-    df.columns = [c.strip().title().replace(" ", "_") for c in df.columns]
-    # Title-case produces e.g. "Roi" — fix the known acronym cases
-    rename_map = {"Roi": "ROI", "Id": "ID"}
-    df.columns = [rename_map.get(c, c) for c in df.columns]
+    """Strip whitespace from column names. Minimal transformation to avoid
+    mangling already-correct names."""
+    df.columns = [c.strip() for c in df.columns]
     return df
 
 

@@ -25,7 +25,7 @@ LINKABLE_CHANNELS = {"YouTube", "Instagram", "Facebook"}
 # out real warnings. Promote to WARNING once a creator service is added.
 KNOWN_MISSING_PLATFORMS = {"Instagram", "Facebook"}
 
-MAX_CAMPAIGNS_PER_CREATOR = 5
+MAX_CAMPAIGNS_PER_CREATOR = 100
 
 
 # ---------------------------------------------------------------------------
