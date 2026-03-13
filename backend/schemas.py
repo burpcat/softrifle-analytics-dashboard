@@ -118,7 +118,7 @@ class TopCreatorItem(BaseModel):
     platform:     DataSource
     category:     Optional[str]
     health_score: Optional[float]
-    avg_roi:      float             # computed in analytics query
+    avg_roi:      Optional[float]   # None when creator has no linked campaigns
 
     model_config = _orm_config
 
