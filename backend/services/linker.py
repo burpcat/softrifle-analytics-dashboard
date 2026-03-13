@@ -25,7 +25,7 @@ LINKABLE_CHANNELS = {"YouTube", "Instagram", "Facebook"}
 # out real warnings. Promote to WARNING once a creator service is added.
 KNOWN_MISSING_PLATFORMS = {"Instagram", "Facebook"}
 
-MAX_CAMPAIGNS_PER_CREATOR = 100
+MAX_CAMPAIGNS_PER_CREATOR = 5
 
 
 # ---------------------------------------------------------------------------
@@ -160,10 +160,14 @@ def link_campaigns_to_creators(
         campaign.creator_id = creator.id
         linked += 1
 
-        # Update cap counter and evict creator if limit reached
+        # Update cap counter and evict creator if limit reached.
+        # Uses ID-based filtering instead of pool.remove(creator) —
+        # list.remove() relies on object identity (is), which breaks after
+        # db.commit() refreshes ORM instances. Filtering by .id is safe
+        # regardless of object reference state.
         assignment_counts[creator.id] += 1
         if assignment_counts[creator.id] >= MAX_CAMPAIGNS_PER_CREATOR:
-            pool.remove(creator)
+            pools[segment_key] = [c for c in pools[segment_key] if c.id != creator.id]
             logger.debug(
                 "Creator %s (%s) hit cap of %d — removed from segment pool '%s'",
                 creator.id, creator.username, MAX_CAMPAIGNS_PER_CREATOR, segment_key,
