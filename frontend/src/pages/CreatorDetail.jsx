@@ -2,19 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import useApi from "../hooks/useApi";
 import { fetchCreator } from "../api/client";
 import HealthScoreBadge from "../components/HealthScoreBadge";
-
-// ── Formatting helpers ────────────────────────────────────────────────────────
-function fmtFollowers(n) {
-  if (n == null) return "—";
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
-}
-
-const fmtPct    = (n) => (n == null ? "—" : `${(n * 100).toFixed(1)}%`);
-const fmtNumber = (n) => (n == null ? "—" : n.toLocaleString());
-const fmtRoi    = (n) => (n == null ? "—" : `${n.toFixed(2)}x`);
-const fmtDate   = (s) => (s ? new Date(s).toLocaleDateString() : "—");
+import { fmtFollowers, fmtPct, fmtNumber, fmtRoi, fmtDate } from "../utils/format";
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 

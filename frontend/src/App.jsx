@@ -1,16 +1,11 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
-
-// ── Temporary stubs ───────────────────────────────────────────────────────────
-// Replace each with the real import as its step is completed.
-// Do not delete this block until all page files exist.
-const Dashboard    = () => <div className="p-6 text-slate-700">Dashboard</div>;
-const Creators     = () => <div className="p-6 text-slate-700">Creators</div>;
-const CreatorDetail = () => <div className="p-6 text-slate-700">Creator Detail</div>;
-const Campaigns    = () => <div className="p-6 text-slate-700">Campaigns</div>;
-const Analytics    = () => <div className="p-6 text-slate-700">Analytics</div>;
-const Alerts       = () => <div className="p-6 text-slate-700">Alerts</div>;
-// ─────────────────────────────────────────────────────────────────────────────
+import Dashboard     from "./pages/Dashboard";
+import Creators      from "./pages/Creators";
+import CreatorDetail from "./pages/CreatorDetail";
+import Campaigns     from "./pages/Campaigns";
+import Analytics     from "./pages/Analytics";
+import Alerts        from "./pages/Alerts";
 
 export default function App() {
   return (

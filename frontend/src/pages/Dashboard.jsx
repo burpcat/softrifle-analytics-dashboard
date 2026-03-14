@@ -7,42 +7,15 @@ import { fetchAnalyticsSummary, fetchAlerts } from "../api/client";
 import StatCard from "../components/StatCard";
 import HealthScoreBadge from "../components/HealthScoreBadge";
 import AlertBadge from "../components/AlertBadge";
+import {
+  fmtNumber, fmtRoi, fmtPct, relativeTime,
+  findRoi, roiObjectToArray, fmtAlertType,
+} from "../utils/format";
 
 // ── Stable params (module-level) ──────────────────────────────────────────────
 // Must stay outside the component. Inline object literals re-create on every
 // render, causing useApi's JSON.stringify dep to fire on every render loop.
 const ALERT_PARAMS = { page_size: 5 };
-
-// ── Formatting helpers ────────────────────────────────────────────────────────
-const fmtNumber = (n) => (n == null ? "—" : n.toLocaleString());
-const fmtRoi    = (n) => (n == null ? "—" : `${n.toFixed(2)}x`);
-const fmtPct    = (n) => (n == null ? "—" : `${(n * 100).toFixed(1)}%`);
-
-function relativeTime(dateStr) {
-  if (!dateStr) return "—";
-  const diff = Date.now() - new Date(dateStr).getTime();
-  if (isNaN(diff)) return "—";
-  const mins  = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days  = Math.floor(diff / 86400000);
-  if (mins  < 60)  return `${mins}m ago`;
-  if (hours < 24)  return `${hours}h ago`;
-  return `${days}d ago`;
-}
-
-// Case-insensitive key lookup — guards against CSV casing inconsistencies
-// (e.g. "influencer" vs "Influencer") on any avg_roi_by_campaign_type object.
-function findRoi(obj, key) {
-  if (!obj) return null;
-  const match = Object.keys(obj).find((k) => k.toLowerCase() === key.toLowerCase());
-  return match ? obj[match] : null;
-}
-
-// Transform { TypeA: 5.01, TypeB: 4.99 } → [{ type: "TypeA", roi: 5.01 }, ...]
-function roiByTypeToArray(obj) {
-  if (!obj) return [];
-  return Object.entries(obj).map(([type, roi]) => ({ type, roi }));
-}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -119,7 +92,7 @@ function TopCreatorsTable({ creators }) {
 }
 
 function RoiByTypeChart({ avgRoiByType }) {
-  const data = roiByTypeToArray(avgRoiByType);
+  const data = roiObjectToArray(avgRoiByType).map(({ name, value }) => ({ type: name, roi: value }));
   if (!data.length) return <p className="text-slate-400 text-sm py-4">No data.</p>;
 
   return (
@@ -166,7 +139,7 @@ function RecentAlerts({ alerts, loading, error }) {
           <AlertBadge severity={a.severity} />
           <div className="flex-1 min-w-0">
             <p className="text-sm text-slate-700 truncate">{a.message}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{a.type} · {relativeTime(a.created_at)}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{fmtAlertType(a.type)} · {relativeTime(a.created_at)}</p>
           </div>
         </li>
       ))}
