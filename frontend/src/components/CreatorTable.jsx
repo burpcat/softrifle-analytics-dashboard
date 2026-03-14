@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import useApi from "../hooks/useApi";
 import { fetchCreators } from "../api/client";
 import HealthScoreBadge from "./HealthScoreBadge";
+import Pagination from "./Pagination";
+import { DEFAULT_CREATOR_PARAMS } from "../constants";
+import { fmtFollowers, fmtPct, fmtNumber } from "../utils/format";
 
 // ── Constants (module-level) ──────────────────────────────────────────────────
 // Hardcoded from API contract — deriving from current results is wrong because
@@ -25,25 +28,6 @@ const SORTABLE_COLUMNS = [
   { label: "Health Score",   field: "health_score",   sortable: true  },
   { label: "Avg Views",      field: "avg_views",      sortable: true  },
 ];
-
-// Default params — used for full reset from empty state
-export const DEFAULT_CREATOR_PARAMS = {
-  page:       1,
-  page_size:  20,
-  sort_by:    "health_score",
-  sort_order: "desc",
-};
-
-// ── Formatting helpers (module-level) ─────────────────────────────────────────
-function fmtFollowers(n) {
-  if (n == null) return "—";
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
-}
-
-const fmtPct    = (n) => (n == null ? "—" : `${(n * 100).toFixed(1)}%`);
-const fmtNumber = (n) => (n == null ? "—" : n.toLocaleString());
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
