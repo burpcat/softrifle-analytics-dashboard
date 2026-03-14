@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from database import get_db
-from config import settings
+from config import get_settings
+
+settings = get_settings()
 
 router = APIRouter(prefix="/api", tags=["ask"])
 
@@ -54,13 +56,13 @@ def _build_context_snapshot(db: Session) -> str:
         SELECT
             (SELECT COUNT(*) FROM creators)                                    AS total_creators,
             (SELECT COUNT(*) FROM campaigns)                                   AS total_campaigns,
-            (SELECT COUNT(*) FROM campaigns WHERE type = 'Influencer')         AS influencer_campaigns
+            (SELECT COUNT(*) FROM campaigns WHERE campaign_type = 'Influencer') AS influencer_campaigns
     """)).mappings().one()
 
     # 2. Top 10 creators by health score
     top_creators = db.execute(text("""
         SELECT
-            c.name,
+            c.display_name AS name,
             c.category,
             c.health_score,
             c.followers,
@@ -75,25 +77,25 @@ def _build_context_snapshot(db: Session) -> str:
 
     # 3. Avg ROI by campaign type
     roi_by_type = db.execute(text("""
-        SELECT type, ROUND(AVG(roi), 2) AS avg_roi
+        SELECT campaign_type AS type, ROUND(AVG(roi), 2) AS avg_roi
         FROM campaigns
-        GROUP BY type
+        GROUP BY campaign_type
         ORDER BY avg_roi DESC
     """)).mappings().all()
 
     # 4. Avg ROI by channel
     roi_by_channel = db.execute(text("""
-        SELECT channel, ROUND(AVG(roi), 2) AS avg_roi
+        SELECT channel_used AS channel, ROUND(AVG(roi), 2) AS avg_roi
         FROM campaigns
-        GROUP BY channel
+        GROUP BY channel_used
         ORDER BY avg_roi DESC
     """)).mappings().all()
 
     # 5. Avg ROI by segment
     roi_by_segment = db.execute(text("""
-        SELECT segment, ROUND(AVG(roi), 2) AS avg_roi
+        SELECT customer_segment AS segment, ROUND(AVG(roi), 2) AS avg_roi
         FROM campaigns
-        GROUP BY segment
+        GROUP BY customer_segment
         ORDER BY avg_roi DESC
     """)).mappings().all()
 
@@ -107,7 +109,7 @@ def _build_context_snapshot(db: Session) -> str:
 
     # 7. Top 5 campaigns by ROI
     top_campaigns = db.execute(text("""
-        SELECT company, type, channel, segment, ROUND(roi, 2) AS roi
+        SELECT company, campaign_type AS type, channel_used AS channel, customer_segment AS segment, ROUND(roi, 2) AS roi
         FROM campaigns
         ORDER BY roi DESC
         LIMIT 5
@@ -115,7 +117,7 @@ def _build_context_snapshot(db: Session) -> str:
 
     # 8. Bottom 5 campaigns by ROI
     bottom_campaigns = db.execute(text("""
-        SELECT company, type, channel, segment, ROUND(roi, 2) AS roi
+        SELECT company, campaign_type AS type, channel_used AS channel, customer_segment AS segment, ROUND(roi, 2) AS roi
         FROM campaigns
         ORDER BY roi ASC
         LIMIT 5

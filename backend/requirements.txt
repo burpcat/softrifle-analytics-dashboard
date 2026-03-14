@@ -24,6 +24,8 @@ pandas==2.2.3
 # --- HTTP client (YouTube API) ---
 requests==2.32.3
 
+httpx
+
 # ============================================================
 # Dev / optional (not required to run the app)
 # ============================================================

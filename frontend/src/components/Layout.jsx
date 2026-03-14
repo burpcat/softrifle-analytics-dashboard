@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
+import AskAI from "./AskAI";
 
 export default function Layout() {
   return (
@@ -8,6 +9,7 @@ export default function Layout() {
       <main className="flex-1 overflow-y-auto bg-content">
         <Outlet />
       </main>
+      <AskAI />
     </div>
   );
 }
