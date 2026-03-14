@@ -33,6 +33,21 @@ export const fmtDate = (d) => {
   });
 };
 
+// Case-insensitive key lookup for avg_roi_by_* objects.
+// Guards against CSV casing inconsistencies (e.g. "influencer" vs "Influencer").
+export function findRoi(obj, key) {
+  if (!obj) return null;
+  const match = Object.keys(obj).find((k) => k.toLowerCase() === key.toLowerCase());
+  return match ? obj[match] : null;
+}
+
+// Transform { TypeA: 5.01, TypeB: 4.99 } → [{ name: "TypeA", value: 5.01 }, ...]
+// Used by any chart that needs to iterate avg_roi_by_* objects.
+export function roiObjectToArray(obj) {
+  if (!obj) return [];
+  return Object.entries(obj).map(([name, value]) => ({ name, value }));
+}
+
 // Relative time for alert timestamps (created_at is a full datetime string,
 // not a bare date — no timezone fix needed here).
 export function relativeTime(dateStr) {
