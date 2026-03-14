@@ -48,6 +48,22 @@ export function roiObjectToArray(obj) {
   return Object.entries(obj).map(([name, value]) => ({ name, value }));
 }
 
+// Alert type display labels — lookup map handles known acronyms correctly
+// (e.g. "low_roi" → "Low ROI", not "Low Roi").
+// Fallback handles any future types added to the AlertType enum gracefully.
+const TYPE_LABELS = {
+  low_roi:                "Low ROI",
+  low_engagement:         "Low Engagement",
+  low_conversion:         "Low Conversion",
+  outreach_opportunity:   "Outreach Opportunity",
+  segment_outperformance: "Segment Outperformance",
+};
+
+export const fmtAlertType = (type) =>
+  TYPE_LABELS[type] ??
+  type?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ??
+  "—";
+
 // Relative time for alert timestamps (created_at is a full datetime string,
 // not a bare date — no timezone fix needed here).
 export function relativeTime(dateStr) {
