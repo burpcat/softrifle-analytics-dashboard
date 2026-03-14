@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import create_tables
-from routers import alerts, analytics, campaigns, creators
+from routers import alerts, analytics, campaigns, creators, ask
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +61,7 @@ app.include_router(creators.router)
 app.include_router(campaigns.router)
 app.include_router(analytics.router)
 app.include_router(alerts.router)
+app.include_router(ask.router)
 
 
 # ---------------------------------------------------------------------------
