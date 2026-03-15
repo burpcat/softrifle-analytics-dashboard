@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import useApi from "../hooks/useApi";
 import { fetchCreators } from "../api/client";
@@ -8,33 +8,32 @@ import { DEFAULT_CREATOR_PARAMS } from "../constants";
 import { fmtFollowers, fmtPct, fmtNumber } from "../utils/format";
 
 // ── Constants (module-level) ──────────────────────────────────────────────────
-// Hardcoded from API contract — deriving from current results is wrong because
-// an already-filtered result set won't contain all categories.
-const CATEGORIES = [
-  "Tech Enthusiasts",
-  "Foodies",
-  "Health & Wellness",
-  "Outdoor Adventurers",
-  "Fashionistas",
-];
 
 const SORTABLE_COLUMNS = [
-  { label: "#",              field: null,             sortable: false },
-  { label: "Creator",        field: null,             sortable: false },
-  { label: "Platform",       field: null,             sortable: false },
-  { label: "Category",       field: null,             sortable: false },
-  { label: "Followers",      field: "followers",      sortable: true  },
-  { label: "Engagement",     field: "engagement_rate",sortable: true  },
-  { label: "Health Score",   field: "health_score",   sortable: true  },
-  { label: "Avg Views",      field: "avg_views",      sortable: true  },
+  { label: "#",              field: null,              sortable: false },
+  { label: "Creator",        field: null,              sortable: false },
+  { label: "Platform",       field: null,              sortable: false },
+  { label: "Category",       field: null,              sortable: false },
+  { label: "Followers",      field: "followers",       sortable: true  },
+  { label: "Engagement",     field: "engagement_rate", sortable: true  },
+  { label: "Health Score",   field: "health_score",    sortable: true  },
+  { label: "Avg Views",      field: "avg_views",       sortable: true  },
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function FilterBar({ params, onParamsChange }) {
-  // Local state for the search input — only fires onParamsChange on Enter/blur
-  // to avoid per-keystroke fetch+abort cycles.
+function FilterBar({ params, onParamsChange, refreshKey }) {
   const [searchDraft, setSearchDraft] = useState(params.search ?? "");
+  const [categories, setCategories]   = useState([]);
+
+  // Fetch distinct categories from DB — reruns when refreshKey changes
+  // (i.e. after a successful ingest) so new categories appear immediately.
+  useEffect(() => {
+    fetch("/api/creators/categories")
+      .then(r => r.json())
+      .then(setCategories)
+      .catch(() => {}); // silently fall back to empty — dropdown still works
+  }, [refreshKey]);
 
   function commitSearch() {
     if (searchDraft !== (params.search ?? "")) {
@@ -56,7 +55,7 @@ function FilterBar({ params, onParamsChange }) {
           placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary w-52"
       />
 
-      {/* Category */}
+      {/* Category — populated from API */}
       <select
         value={params.category ?? ""}
         onChange={(e) => onParamsChange({ category: e.target.value || undefined, page: 1 })}
@@ -64,7 +63,7 @@ function FilterBar({ params, onParamsChange }) {
           focus:outline-none focus:ring-2 focus:ring-primary"
       >
         <option value="">All categories</option>
-        {CATEGORIES.map((c) => (
+        {categories.map((c) => (
           <option key={c} value={c}>{c}</option>
         ))}
       </select>
@@ -98,12 +97,10 @@ function FilterBar({ params, onParamsChange }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function CreatorTable({ params, onParamsChange }) {
+export default function CreatorTable({ params, onParamsChange, refreshKey }) {
   const navigate = useNavigate();
   const { data, loading, error } = useApi(fetchCreators, params);
 
-  // Clicking the same column toggles asc/desc.
-  // Clicking a different column resets to desc (most useful default).
   function handleSort(field) {
     const newOrder =
       field === params.sort_by
@@ -123,7 +120,7 @@ export default function CreatorTable({ params, onParamsChange }) {
 
   return (
     <div>
-      <FilterBar params={params} onParamsChange={onParamsChange} />
+      <FilterBar params={params} onParamsChange={onParamsChange} refreshKey={refreshKey} />
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -174,7 +171,6 @@ export default function CreatorTable({ params, onParamsChange }) {
                 </tr>
               )}
               {!loading && !error && data?.results?.map((creator, i) => {
-                // Rank accounts for pagination so page 2 starts at 21, not 1.
                 const rank = (params.page - 1) * params.page_size + i + 1;
                 return (
                   <tr
@@ -204,7 +200,6 @@ export default function CreatorTable({ params, onParamsChange }) {
           </table>
         </div>
 
-        {/* Pagination lives inside the card, below the table */}
         {!loading && !error && data && (
           <div className="px-4 pb-4">
             <Pagination

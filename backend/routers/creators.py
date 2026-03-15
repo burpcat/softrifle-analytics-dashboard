@@ -118,6 +118,17 @@ def get_creators(
         results   = [CreatorResponse.model_validate(c) for c in results],
     )
 
+#dynamic fetching of creator categories for dropdown filter
+@router.get("/categories", response_model=list[str])
+def get_categories(db: Session = Depends(get_db)):
+    rows = (
+        db.query(Creator.category)
+        .filter(Creator.category.isnot(None))
+        .distinct()
+        .order_by(Creator.category)
+        .all()
+    )
+    return [r[0] for r in rows]
 
 # ---------------------------------------------------------------------------
 # GET /api/creators/{creator_id}
