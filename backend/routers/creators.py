@@ -1,17 +1,24 @@
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from config import get_settings
 from database import get_db
-from models import Creator
+from models import Campaign, Creator
 from schemas import CreatorListResponse, CreatorResponse
+from services.health_score import compute_health_scores
+from services.youtube import DEFAULT_SEGMENTS, _fetch_creators_for_segment
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/creators", tags=["creators"])
+settings = get_settings()
 
 # ---------------------------------------------------------------------------
 # Sort column map — explicit dict, no getattr.
@@ -65,7 +72,6 @@ def get_creators(
 
     # --- Filters ---
     if platform:
-        # Validate platform value — invalid enum raises 400 not 500
         try:
             from models import DataSource
             DataSource(platform)
@@ -101,9 +107,9 @@ def get_creators(
     )
 
     # --- Pagination ---
-    total     = q.count()
-    offset    = (page - 1) * page_size
-    results   = ordered.offset(offset).limit(page_size).all()
+    total   = q.count()
+    offset  = (page - 1) * page_size
+    results = ordered.offset(offset).limit(page_size).all()
 
     return CreatorListResponse(
         total     = total,
@@ -141,3 +147,152 @@ def get_creator(
         )
 
     return CreatorResponse.model_validate(creator)
+
+
+# ---------------------------------------------------------------------------
+# Ingest models
+# ---------------------------------------------------------------------------
+
+class IngestRequest(BaseModel):
+    category: str
+    keywords: list[str] = []
+    max_results: int = Field(default=10, ge=1, le=30)
+
+
+class IngestCreator(BaseModel):
+    id: str
+    display_name: str | None
+    username: str
+    category: str | None
+    followers: int
+    health_score: float | None
+
+
+class IngestResponse(BaseModel):
+    status: str
+    new_creators_added: int
+    duplicates_skipped: int
+    total_creators_now: int
+    creators: list[IngestCreator]
+
+
+# ---------------------------------------------------------------------------
+# POST /api/creators/ingest
+# ---------------------------------------------------------------------------
+
+@router.post("/ingest", response_model=IngestResponse)
+def ingest_creators(request: IngestRequest, db: Session = Depends(get_db)):
+    """Fetch new YouTube creators for a category and insert them into the DB.
+
+    After insert, health scores are recomputed across the full creator pool —
+    min-max normalization is global so adding new creators can shift everyone's
+    scores. Deduplicates by platform_id before inserting.
+    """
+    # --- Guard: YouTube API key ---
+    if not settings.YOUTUBE_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="YouTube API key not configured — YOUTUBE_API_KEY not set",
+        )
+
+    # --- Keyword resolution ---
+    keywords = request.keywords if request.keywords else (
+        DEFAULT_SEGMENTS.get(request.category) or [request.category]
+    )
+    max_per_keyword = max(1, request.max_results // len(keywords))
+
+    # --- Fetch from YouTube ---
+    try:
+        fetched = _fetch_creators_for_segment(
+            api_key=settings.YOUTUBE_API_KEY,
+            segment=request.category,
+            keywords=keywords,
+            max_per_keyword=max_per_keyword,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"YouTube API temporarily unavailable: {exc}",
+        )
+
+    # --- Deduplication ---
+    existing_platform_ids = {
+        row[0] for row in db.query(Creator.platform_id).all()
+    }
+
+    new_dicts: list[dict] = []
+    duplicates_skipped = 0
+    for c in fetched:
+        if c["platform_id"] in existing_platform_ids:
+            duplicates_skipped += 1
+        else:
+            existing_platform_ids.add(c["platform_id"])  # guard within-batch dupes
+            new_dicts.append(c)
+
+    # --- Early return: nothing new ---
+    if not new_dicts:
+        total = db.query(Creator).count()
+        return IngestResponse(
+            status="success",
+            new_creators_added=0,
+            duplicates_skipped=duplicates_skipped,
+            total_creators_now=total,
+            creators=[],
+        )
+
+    # --- Insert new creators ---
+    now = datetime.now(timezone.utc)
+    new_creators = [
+        Creator(
+            id=str(uuid.uuid4()),
+            platform=c["platform"],
+            platform_id=c["platform_id"],
+            username=c["username"],
+            display_name=c["display_name"],
+            avatar_url=c["avatar_url"],
+            followers=c["followers"],
+            avg_views=c["avg_views"],
+            engagement_rate=c["engagement_rate"],
+            posts_per_week=c["posts_per_week"],
+            category=c["category"],
+            country=c["country"],
+            health_score=None,
+            created_at=now,
+            last_updated=now,
+        )
+        for c in new_dicts
+    ]
+    db.add_all(new_creators)
+    db.flush()  # write to session so full pool query below includes new rows
+
+    # --- Health score recomputation over full pool ---
+    all_creators = db.query(Creator).all()
+    all_campaigns = db.query(Campaign).all()
+    compute_health_scores(all_creators, all_campaigns)
+
+    for creator in all_creators:
+        db.add(creator)
+    db.commit()
+
+    for creator in new_creators:
+        db.refresh(creator)
+
+    return IngestResponse(
+        status="success",
+        new_creators_added=len(new_creators),
+        duplicates_skipped=duplicates_skipped,
+        total_creators_now=len(all_creators),
+        creators=[
+            IngestCreator(
+                id=c.id,
+                display_name=c.display_name,
+                username=c.username,
+                category=c.category,
+                followers=c.followers,
+                health_score=c.health_score,
+            )
+            for c in new_creators
+        ],
+    )
